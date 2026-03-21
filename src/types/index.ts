@@ -33,7 +33,7 @@ export interface Response {
   question_id: string;
   answer: string;
   time_taken?: number;
-  confidence?: number; // 1-5
+  confidence?: 'low' | 'medium' | 'high';
 }
 
 export interface ProctorEvent {
