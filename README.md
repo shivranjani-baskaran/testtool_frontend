@@ -1,119 +1,66 @@
-# AI Interview Assessment Tool — Frontend
+# AI Interview Assessment Tool
 
-A comprehensive React-based frontend for the AI Interview Assessment tool with full integration to the FastAPI backend.
+A full-stack AI-powered interview assessment platform.
+
+## Repository Structure
+
+```
+/
+├── frontend/        # React + TypeScript frontend
+└── backend/         # FastAPI Python backend
+```
+
+## Frontend
+
+React 18 + TypeScript application with Tailwind CSS. See [`frontend/`](./frontend/) for setup instructions.
+
+**Quick start:**
+```bash
+cd frontend
+npm install
+cp .env.local.example .env.local
+npm start
+```
+
+## Backend
+
+FastAPI + SQLAlchemy backend with Azure OpenAI integration. See [`backend/`](./backend/) for setup instructions.
+
+**Quick start:**
+```bash
+cd backend
+pip install -r requirements.txt
+cp .env.example .env
+uvicorn main:app --reload
+```
 
 ## Tech Stack
 
-- **React 18** with TypeScript
-- **Tailwind CSS** for styling
-- **Recharts** for data visualization
-- **Axios** for API communication
-- **React Router v6** for navigation
+| Layer | Technology |
+|-------|-----------|
+| Frontend | React 18, TypeScript, Tailwind CSS, Recharts |
+| Backend | FastAPI, SQLAlchemy, PostgreSQL |
+| AI | Azure OpenAI (GPT-4) |
+| Email | Azure Communication Services |
 
 ## Pages
 
 | Page | Route | Description |
 |------|-------|-------------|
-| Dashboard | `/` | Analytics: metric cards, score distribution, category performance, skill breakdown |
+| Dashboard | `/` | Analytics: metric cards, score distribution, category performance |
 | Upload JD | `/upload-jd` | Upload or paste a job description to generate a test |
 | Test Taking | `/test` | Interview test interface with timer, proctoring & confidence ratings |
-| Reports | `/reports` | Evaluation results, radar chart, metacognitive analysis, proctoring log |
+| Reports | `/reports` | Evaluation results, radar chart, metacognitive analysis |
 
-## Getting Started
+## API Endpoints
 
-### Prerequisites
-
-- Node.js 16+
-- Running FastAPI backend (see backend repo)
-
-### Installation
-
-```bash
-npm install
-```
-
-### Configuration
-
-Copy `.env.local.example` to `.env.local` and update the API URL:
-
-```bash
-cp .env.local.example .env.local
-```
-
-Edit `.env.local`:
-
-```
-REACT_APP_API_URL=http://localhost:8000
-```
-
-### Running
-
-```bash
-npm start
-```
-
-The app will be available at [http://localhost:3000](http://localhost:3000).
-
-### Building for Production
-
-```bash
-npm run build
-```
-
-## API Integration
-
-The frontend integrates with two FastAPI endpoints:
-
-### `POST /generate-test`
-
-**Request:**
-```json
-{ "job_description": "..." }
-```
-
-**Response:**
-```json
-{
-  "questions": [...],
-  "role": "Software Engineer",
-  "skills": ["Python", "React"],
-  "weights": { "Technical": 60, "Communication": 40 }
-}
-```
-
-### `POST /submit-test`
-
-**Request:**
-```json
-{
-  "questions": [...],
-  "responses": [...],
-  "events": [...],
-  "summary": { "tab_switches": 0, "no_face_count": 0, "total_events": 0 }
-}
-```
-
-**Response:**
-```json
-{
-  "report": {
-    "total_score": 78,
-    "max_score": 100,
-    "percentage": 78,
-    "grade": "B+",
-    "category_scores": {...},
-    "evaluated_responses": [...],
-    "metacognitive_analysis": {...},
-    "proctoring_summary": {...},
-    "recommendations": [...],
-    "strengths": [...],
-    "weaknesses": [...]
-  }
-}
-```
-
-## Running Tests
-
-```bash
-npm test
-```
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | /health | Health check |
+| POST | /generate-test | Generate questions from JD |
+| POST | /generate-test-link | Create session and send email |
+| POST | /submit-test | Submit answers and get report |
+| GET | /test-session/{id} | Get test session data |
+| POST | /validate-session | Validate session credentials |
+| GET | /candidate/{id} | Get candidate info |
+| GET | /candidate/{id}/report | Get evaluation report |
