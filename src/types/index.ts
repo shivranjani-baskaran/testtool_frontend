@@ -49,10 +49,21 @@ export interface ProctorSummary {
 }
 
 export interface SubmitTestRequest {
+  candidate_id: string;
+  email: string;
+  session_id?: string;
   questions: Question[];
   responses: Response[];
-  events: ProctorEvent[];
-  summary: ProctorSummary;
+  total_time: number;
+  test_metadata: {
+    start_time: string;
+    end_time: string;
+    tab_switches: number;
+    copy_paste_attempts: number;
+  };
+  // Legacy proctoring fields kept for backwards compatibility
+  events?: ProctorEvent[];
+  summary?: ProctorSummary;
 }
 
 export interface EvaluatedResponse {
@@ -90,6 +101,19 @@ export interface SubmitTestResponse {
   report: CandidateReport;
   candidate_id?: string;
   submitted_at?: string;
+}
+
+export interface CandidateInfo {
+  candidate_id: string;
+  email: string;
+  name?: string;
+  session_id?: string;
+}
+
+export interface GenerateTestLinkResponse {
+  session_id: string;
+  test_link: string;
+  message: string;
 }
 
 // Dashboard types

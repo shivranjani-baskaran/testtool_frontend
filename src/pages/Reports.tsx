@@ -10,6 +10,8 @@ import {
   SubmitTestResponse,
   GenerateTestResponse,
   EvaluatedResponse,
+  CandidateInfo,
+  SubmitTestRequest,
 } from '../types';
 import {
   BarChart,
@@ -31,6 +33,8 @@ interface LocationState {
   events?: ProctorEvent[];
   summary?: ProctorSummary;
   testData?: GenerateTestResponse;
+  candidateInfo?: CandidateInfo;
+  submitPayload?: SubmitTestRequest;
 }
 
 // Demo report for when there is no backend
@@ -122,12 +126,27 @@ const Reports: React.FC = () => {
     setLoading(true);
     setError('');
     try {
-      const result = await submitTest({
+      // Use the pre-built submitPayload if available, otherwise build a minimal one
+      if (!state!.submitPayload && (!state!.candidateInfo?.candidate_id || !state!.candidateInfo?.email)) {
+        console.warn('[Reports] Submitting test without complete candidate info — fallback values used.');
+      }
+      const payload: SubmitTestRequest = state!.submitPayload ?? {
+        candidate_id: state!.candidateInfo?.candidate_id ?? 'UNKNOWN',
+        email: state!.candidateInfo?.email ?? 'unknown@example.com',
+        session_id: state!.candidateInfo?.session_id,
         questions: state!.questions!,
         responses: state!.responses!,
+        total_time: state!.responses!.reduce((s, r) => s + (r.time_taken ?? 0), 0),
+        test_metadata: {
+          start_time: new Date().toISOString(),
+          end_time: new Date().toISOString(),
+          tab_switches: state!.summary?.tab_switches ?? 0,
+          copy_paste_attempts: 0,
+        },
         events: state!.events ?? [],
         summary: state!.summary ?? { tab_switches: 0, no_face_count: 0, total_events: 0 },
-      });
+      };
+      const result = await submitTest(payload);
       setReport(result);
     } catch (err: any) {
       const msg =

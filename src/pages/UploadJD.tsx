@@ -85,7 +85,7 @@ const UploadJD: React.FC = () => {
 
   const handleStartTest = () => {
     if (result) {
-      navigate('/test', { state: { testData: result } });
+      navigate('/candidate-form', { state: { testData: result } });
     }
   };
 
@@ -313,10 +313,10 @@ const UploadJD: React.FC = () => {
                     </div>
                     {q.options && q.options.length > 0 && (
                       <ul className="mt-2 space-y-1 ml-4">
-                        {q.options.map((opt) => (
-                          <li key={opt.id} className="text-xs text-gray-600 flex gap-2">
-                            <span className="text-gray-400">{opt.id}.</span>
-                            {opt.text}
+                        {q.options.map((opt, oi) => (
+                          <li key={opt.id ?? oi} className="text-xs text-gray-600 flex gap-2">
+                            <span className="font-medium text-gray-500 min-w-[1.25rem]">{opt.id}.</span>
+                            <span>{opt.text || <em className="text-gray-400">(no text)</em>}</span>
                           </li>
                         ))}
                       </ul>
@@ -344,10 +344,10 @@ const UploadJD: React.FC = () => {
                 className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                    d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                 </svg>
-                Start Test
+                Send to Candidate
               </button>
             </div>
           </div>
