@@ -85,7 +85,7 @@ const TestTaking: React.FC = () => {
   );
   const [proctorEvents, setProctorEvents] = useState<ProctorEvent[]>([]);
   const [submitted, setSubmitted] = useState(false);
-  const [confidence, setConfidence] = useState(3);
+  const [confidence, setConfidence] = useState<'low' | 'medium' | 'high'>('medium');
   const [textAnswer, setTextAnswer] = useState('');
   const [showConfirmSubmit, setShowConfirmSubmit] = useState(false);
 
@@ -150,10 +150,10 @@ const TestTaking: React.FC = () => {
     const existing = responses[currentQuestion?.id];
     if (existing) {
       setTextAnswer(existing.answer);
-      setConfidence(existing.confidence ?? 3);
+      setConfidence(existing.confidence ?? 'medium');
     } else {
       setTextAnswer('');
-      setConfidence(3);
+      setConfidence('medium');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentIdx]);
@@ -392,24 +392,44 @@ const TestTaking: React.FC = () => {
               <p className="text-xs text-gray-500 mb-2">
                 How confident are you in this answer?
               </p>
-              <div className="flex gap-2">
-                {[1, 2, 3, 4, 5].map((val) => (
-                  <button
-                    key={val}
-                    onClick={() => setConfidence(val)}
-                    className={`flex-1 py-1.5 rounded-lg text-xs font-medium border transition-all ${
-                      confidence === val
-                        ? 'bg-blue-600 text-white border-blue-600'
-                        : 'bg-white text-gray-600 border-gray-200 hover:border-blue-400'
+              <div className="flex gap-3">
+                {(['low', 'medium', 'high'] as const).map((level) => (
+                  <label
+                    key={level}
+                    className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg border-2 cursor-pointer text-sm font-medium transition-all select-none ${
+                      confidence === level
+                        ? level === 'low'
+                          ? 'border-red-400 bg-red-50 text-red-700'
+                          : level === 'medium'
+                          ? 'border-yellow-400 bg-yellow-50 text-yellow-700'
+                          : 'border-green-400 bg-green-50 text-green-700'
+                        : 'border-gray-200 text-gray-500 hover:border-gray-300 bg-white'
                     }`}
                   >
-                    {val}
-                  </button>
+                    <input
+                      type="radio"
+                      name="confidence"
+                      value={level}
+                      checked={confidence === level}
+                      onChange={() => {
+                        setConfidence(level);
+                        // Update saved response with new confidence immediately
+                        setResponses((prev) => {
+                          const existing = prev[currentQuestion.id];
+                          if (existing) {
+                            return {
+                              ...prev,
+                              [currentQuestion.id]: { ...existing, confidence: level },
+                            };
+                          }
+                          return prev;
+                        });
+                      }}
+                      className="sr-only"
+                    />
+                    {level.charAt(0).toUpperCase() + level.slice(1)}
+                  </label>
                 ))}
-              </div>
-              <div className="flex justify-between text-xs text-gray-400 mt-1 px-0.5">
-                <span>Not sure</span>
-                <span>Very confident</span>
               </div>
             </div>
           </div>
