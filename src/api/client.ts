@@ -50,6 +50,7 @@ interface RawOption {
   text?: string;
   option_text?: string;
   value?: string;
+  [key: string]: unknown;
 }
 
 interface RawQuestion {
@@ -86,6 +87,18 @@ interface RawGenerateTestResponse {
  * Backends may use different field names (e.g. question_text vs text, question_type vs type,
  * option_id/option_text vs id/text, numeric IDs, etc.).
  */
+/** Extract the display text from a raw option object, trying all known field names. */
+const extractOptionText = (opt: RawOption, i: number): string => {
+  const knownIdKeys = ['id', 'option_id', 'key'];
+  if (opt.text) return opt.text;
+  if (opt.option_text) return opt.option_text;
+  if (opt.value) return opt.value;
+  // Fall back to single non-id key value (e.g. {"A": "text"})
+  const extra = Object.keys(opt).filter((k) => !knownIdKeys.includes(k));
+  if (extra.length === 1) return String(opt[extra[0]] ?? '');
+  return String.fromCharCode(65 + i); // absolute last resort: A, B, C…
+};
+
 const normalizeQuestion = (raw: RawQuestion, index: number): Question => {
   const id = String(raw.id ?? raw.question_id ?? index + 1);
   const text = raw.text ?? raw.question_text ?? raw.question ?? '';
@@ -93,9 +106,16 @@ const normalizeQuestion = (raw: RawQuestion, index: number): Question => {
 
   let options: Option[] | undefined;
   if (Array.isArray(raw.options) && raw.options.length > 0) {
-    options = raw.options.map((opt: RawOption, i: number) => ({
-      id: String(opt.id ?? opt.option_id ?? opt.key ?? String.fromCharCode(65 + i)),
-      text: opt.text ?? opt.option_text ?? opt.value ?? '',
+    options = raw.options.map((opt: RawOption, i: number) => {
+      const label = String(opt.id ?? opt.option_id ?? opt.key ?? String.fromCharCode(65 + i));
+      return { id: label, text: extractOptionText(opt, i) };
+    });
+  } else if (raw.options && !Array.isArray(raw.options) && typeof raw.options === 'object') {
+    // Backend may return options as a dict: {"A": "text1", "B": "text2"}
+    const optDict = raw.options as Record<string, unknown>;
+    options = Object.entries(optDict).map(([key, val]) => ({
+      id: key,
+      text: String(val ?? ''),
     }));
   }
 
@@ -143,6 +163,17 @@ export const submitTest = async (
     '/submit-test',
     request
   );
+  return response.data;
+};
+
+export const generateTestLink = async (request: {
+  candidate_id: string;
+  email: string;
+  name?: string;
+  questions: Question[];
+  session_id?: string;
+}): Promise<{ session_id: string; test_link: string; message: string }> => {
+  const response = await apiClient.post('/generate-test-link', request);
   return response.data;
 };
 

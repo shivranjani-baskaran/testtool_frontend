@@ -4,6 +4,7 @@ import Dashboard from './pages/Dashboard';
 import UploadJD from './pages/UploadJD';
 import TestTaking from './pages/TestTaking';
 import Reports from './pages/Reports';
+import CandidateForm from './pages/CandidateForm';
 
 function App() {
   return (
@@ -11,6 +12,7 @@ function App() {
       <Routes>
         <Route path="/" element={<Dashboard />} />
         <Route path="/upload-jd" element={<UploadJD />} />
+        <Route path="/candidate-form" element={<CandidateForm />} />
         <Route path="/test" element={<TestTaking />} />
         <Route path="/reports" element={<Reports />} />
         <Route path="*" element={<Navigate to="/" replace />} />

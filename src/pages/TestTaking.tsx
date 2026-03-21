@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Question, Response, ProctorEvent, GenerateTestResponse } from '../types';
+import { Question, Response, ProctorEvent, GenerateTestResponse, CandidateInfo } from '../types';
 
 // Demo questions for testing without a backend
 const DEMO_TEST: GenerateTestResponse = {
@@ -68,6 +68,7 @@ const DEMO_TEST: GenerateTestResponse = {
 
 interface LocationState {
   testData?: GenerateTestResponse;
+  candidateInfo?: CandidateInfo;
 }
 
 const TestTaking: React.FC = () => {
@@ -76,6 +77,10 @@ const TestTaking: React.FC = () => {
   const state = location.state as LocationState | null;
 
   const testData: GenerateTestResponse = state?.testData || DEMO_TEST;
+  const candidateInfo: CandidateInfo = state?.candidateInfo || {
+    candidate_id: 'DEMO',
+    email: 'demo@example.com',
+  };
   const questions: Question[] = testData.questions;
 
   const [currentIdx, setCurrentIdx] = useState(0);
@@ -88,6 +93,14 @@ const TestTaking: React.FC = () => {
   const [confidence, setConfidence] = useState<'low' | 'medium' | 'high'>('medium');
   const [textAnswer, setTextAnswer] = useState('');
   const [showConfirmSubmit, setShowConfirmSubmit] = useState(false);
+
+  // Per-question elapsed time tracking (counting up)
+  const [questionStartTime, setQuestionStartTime] = useState<number>(Date.now());
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const elapsedIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Test-wide start time
+  const testStartTimeRef = useRef<string>(new Date().toISOString());
 
   const currentQuestion = questions[currentIdx];
   const timerRef = useRef<NodeJS.Timeout | null>(null);
@@ -122,7 +135,7 @@ const TestTaking: React.FC = () => {
     };
   }, []);
 
-  // Timer
+  // Timer (countdown)
   useEffect(() => {
     if (submitted) return;
     setTimeLeft(currentQuestion?.time_limit ?? 60);
@@ -141,6 +154,23 @@ const TestTaking: React.FC = () => {
 
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentIdx, submitted]);
+
+  // Per-question elapsed time (counting up)
+  useEffect(() => {
+    if (submitted) return;
+    setQuestionStartTime(Date.now());
+    setElapsedSeconds(0);
+    if (elapsedIntervalRef.current) clearInterval(elapsedIntervalRef.current);
+
+    elapsedIntervalRef.current = setInterval(() => {
+      setElapsedSeconds((s) => s + 1);
+    }, 1000);
+
+    return () => {
+      if (elapsedIntervalRef.current) clearInterval(elapsedIntervalRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentIdx, submitted]);
@@ -181,12 +211,13 @@ const TestTaking: React.FC = () => {
   }, [currentIdx, currentQuestion, confidence, questions.length]);
 
   const saveCurrentAnswer = (answer: string) => {
+    const timeTaken = Math.round((Date.now() - questionStartTime) / 1000);
     setResponses((prev) => ({
       ...prev,
       [currentQuestion.id]: {
         question_id: currentQuestion.id,
         answer,
-        time_taken: (currentQuestion.time_limit ?? 60) - timeLeft,
+        time_taken: timeTaken,
         confidence,
       },
     }));
@@ -217,12 +248,44 @@ const TestTaking: React.FC = () => {
     setShowConfirmSubmit(false);
     setSubmitted(true);
     if (timerRef.current) clearInterval(timerRef.current);
+    if (elapsedIntervalRef.current) clearInterval(elapsedIntervalRef.current);
 
     const allResponses = Object.values(responses);
+    const endTime = new Date().toISOString();
+    const totalTime = allResponses.reduce((sum, r) => sum + (r.time_taken ?? 0), 0);
     const summary = {
       tab_switches: proctorEvents.filter((e) => e.type === 'tab_switch').length,
       no_face_count: proctorEvents.filter((e) => e.type === 'no_face').length,
       total_events: proctorEvents.length,
+    };
+
+    const submitPayload = {
+      candidate_id: candidateInfo.candidate_id,
+      email: candidateInfo.email,
+      session_id: candidateInfo.session_id,
+      questions: questions.map((q) => ({
+        id: q.id,
+        question: q.text,
+        type: q.type,
+        difficulty: q.difficulty,
+      })),
+      responses: allResponses.map((r) => ({
+        question_id: r.question_id,
+        answer: r.answer,
+        confidence: r.confidence ?? 'medium',
+        time_taken: r.time_taken ?? 0,
+        difficulty: questions.find((q) => q.id === r.question_id)?.difficulty,
+      })),
+      total_time: totalTime,
+      test_metadata: {
+        start_time: testStartTimeRef.current,
+        end_time: endTime,
+        tab_switches: summary.tab_switches,
+        copy_paste_attempts: 0,
+      },
+      // Legacy fields
+      events: proctorEvents,
+      summary,
     };
 
     navigate('/reports', {
@@ -232,6 +295,8 @@ const TestTaking: React.FC = () => {
         events: proctorEvents,
         summary,
         testData,
+        candidateInfo,
+        submitPayload,
       },
     });
   };
@@ -262,6 +327,8 @@ const TestTaking: React.FC = () => {
   }
 
   const currentAnswer = responses[currentQuestion.id]?.answer ?? '';
+  // Next is disabled until the current question has a non-empty answer
+  const canProceed = currentAnswer.trim() !== '';
 
   return (
     <div className="min-h-screen bg-gray-100">
@@ -280,7 +347,7 @@ const TestTaking: React.FC = () => {
           </div>
         </div>
 
-        {/* Proctoring status */}
+        {/* Proctoring status + candidate info */}
         <div className="flex items-center gap-4">
           {proctorEvents.length > 0 && (
             <div className="flex items-center gap-1.5 bg-yellow-500 bg-opacity-20 px-3 py-1.5 rounded-full">
@@ -291,6 +358,7 @@ const TestTaking: React.FC = () => {
             </div>
           )}
           <div className="text-right">
+            <p className="text-xs text-blue-200 font-medium">{candidateInfo.candidate_id}</p>
             <p className="text-xs text-blue-300">{answeredCount}/{questions.length} answered</p>
           </div>
         </div>
@@ -326,14 +394,25 @@ const TestTaking: React.FC = () => {
                 )}
               </div>
 
-              {/* Timer */}
-              <div className={`flex items-center gap-1.5 font-mono font-bold ${timerColor}`}>
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                    d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                {String(Math.floor(timeLeft / 60)).padStart(2, '0')}:
-                {String(timeLeft % 60).padStart(2, '0')}
+              {/* Timers */}
+              <div className="flex items-center gap-3">
+                {/* Elapsed time for this question */}
+                <div className="flex items-center gap-1 text-gray-400 font-mono text-sm">
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                      d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  {String(Math.floor(elapsedSeconds / 60)).padStart(2, '0')}:
+                  {String(elapsedSeconds % 60).padStart(2, '0')}
+                </div>
+                {/* Countdown (if time_limit set) */}
+                {currentQuestion?.time_limit && (
+                  <div className={`flex items-center gap-1 font-mono font-bold text-sm ${timerColor}`}>
+                    <span className="text-xs text-gray-400 font-normal">limit</span>
+                    {String(Math.floor(timeLeft / 60)).padStart(2, '0')}:
+                    {String(timeLeft % 60).padStart(2, '0')}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -448,25 +527,37 @@ const TestTaking: React.FC = () => {
             </button>
 
             {currentIdx < questions.length - 1 ? (
-              <button
-                onClick={handleNext}
-                className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-lg text-sm"
-              >
-                Next
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              </button>
+              <div className="flex flex-col items-end gap-1">
+                <button
+                  onClick={handleNext}
+                  disabled={!canProceed}
+                  className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white px-5 py-2 rounded-lg text-sm transition-colors"
+                >
+                  Next
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
+                {!canProceed && (
+                  <p className="text-xs text-gray-400">Select an answer to continue</p>
+                )}
+              </div>
             ) : (
-              <button
-                onClick={() => setShowConfirmSubmit(true)}
-                className="flex items-center gap-1.5 bg-green-600 hover:bg-green-700 text-white px-5 py-2 rounded-lg text-sm font-medium"
-              >
-                Submit Test
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-              </button>
+              <div className="flex flex-col items-end gap-1">
+                <button
+                  onClick={() => setShowConfirmSubmit(true)}
+                  disabled={!canProceed}
+                  className="flex items-center gap-1.5 bg-green-600 hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white px-5 py-2 rounded-lg text-sm font-medium transition-colors"
+                >
+                  Submit Test
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                </button>
+                {!canProceed && (
+                  <p className="text-xs text-gray-400">Answer this question first</p>
+                )}
+              </div>
             )}
           </div>
         </div>
