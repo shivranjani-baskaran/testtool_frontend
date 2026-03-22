@@ -27,6 +27,7 @@ export interface GenerateTestResponse {
   skills: string[];
   weights: Record<string, number>;
   test_id?: string;
+  jd_id?: string;
 }
 
 export interface Response {
@@ -60,6 +61,7 @@ export interface SubmitTestRequest {
     end_time: string;
     tab_switches: number;
     copy_paste_attempts: number;
+    window_blur_count?: number;
   };
   // Legacy proctoring fields kept for backwards compatibility
   events?: ProctorEvent[];
@@ -81,13 +83,21 @@ export interface MetacognitiveAnalysis {
   overconfidence_count: number;
   underconfidence_count: number;
   calibration_score: number;
+  guessing_count?: number;
+  struggle_count?: number;
+  meta_score?: number;
+  behavioral_insights?: string[];
 }
 
 export interface CandidateReport {
   total_score: number;
   max_score: number;
   percentage: number;
+  final_score: number;
   grade: string;
+  hire_decision: string;
+  risk_level: string;
+  summary: string;
   category_scores: Record<string, number>;
   evaluated_responses: EvaluatedResponse[];
   metacognitive_analysis: MetacognitiveAnalysis;
@@ -122,6 +132,7 @@ export interface DashboardMetrics {
   tests_sent: number;
   tests_completed: number;
   average_score: number;
+  score_distribution: { range: string; count: number }[];
 }
 
 export interface ScoreDistribution {
@@ -139,4 +150,27 @@ export interface SkillBreakdown {
   skill: string;
   score: number;
   maxScore: number;
+}
+
+export interface JobDescriptionRecord {
+  id: string;
+  raw_text: string;
+  role?: string;
+  skills?: string[];
+  weights?: Record<string, number>;
+  seniority_level?: string;
+  questions?: Question[];
+  created_at: string;
+}
+
+export interface CandidateReportSummary {
+  candidate_id: string;
+  name?: string;
+  email: string;
+  session_id: string;
+  role?: string;
+  final_score?: number;
+  hire_decision?: string;
+  risk_level?: string;
+  completed_at?: string;
 }

@@ -9,6 +9,22 @@ def generate_uuid():
     return str(uuid.uuid4())
 
 
+class JobDescription(Base):
+    __tablename__ = "job_descriptions"
+
+    id = Column(String, primary_key=True, default=generate_uuid)
+    raw_text = Column(Text, nullable=False)
+    role = Column(String, nullable=True)
+    skills = Column(JSON, nullable=True)
+    weights = Column(JSON, nullable=True)
+    seniority_level = Column(String, nullable=True)
+    requirements = Column(JSON, nullable=True)
+    questions = Column(JSON, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    sessions = relationship("TestSession", back_populates="job_description")
+
+
 class Candidate(Base):
     __tablename__ = "candidates"
 
@@ -26,6 +42,7 @@ class TestSession(Base):
 
     id = Column(String, primary_key=True, default=generate_uuid)
     candidate_id = Column(String, ForeignKey("candidates.id"), nullable=False)
+    jd_id = Column(String, ForeignKey("job_descriptions.id"), nullable=True)
     questions = Column(JSON, nullable=False)
     status = Column(String, default="pending")  # pending, started, completed
     test_link = Column(String, nullable=True)
@@ -38,6 +55,7 @@ class TestSession(Base):
     completed_at = Column(DateTime, nullable=True)
 
     candidate = relationship("Candidate", back_populates="sessions")
+    job_description = relationship("JobDescription", back_populates="sessions")
     responses = relationship("CandidateResponse", back_populates="session")
     result = relationship("TestResult", back_populates="session", uselist=False)
 
@@ -66,6 +84,11 @@ class TestResult(Base):
     proctoring_score = Column(Float, nullable=True)
     final_score = Column(Float, nullable=True)
     hire_decision = Column(Boolean, nullable=True)
+    risk_level = Column(String, nullable=True)
+    hire_decision_label = Column(String, nullable=True)
+    strengths = Column(JSON, nullable=True)
+    weaknesses = Column(JSON, nullable=True)
+    summary = Column(Text, nullable=True)
     report_data = Column(JSON, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 

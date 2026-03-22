@@ -102,8 +102,19 @@ def save_test_result(
         db.add(result)
 
     result.technical_score = _safe_float(report.get("total_score"))
-    result.final_score = _safe_float(report.get("percentage"))
+    result.final_score = _safe_float(report.get("final_score") or report.get("percentage"))
     result.hire_decision = bool(report.get("percentage", 0) >= 60)
+    result.risk_level = report.get("risk_level")
+    result.hire_decision_label = report.get("hire_decision") if isinstance(report.get("hire_decision"), str) else None
+    result.strengths = report.get("strengths")
+    result.weaknesses = report.get("weaknesses")
+    result.summary = report.get("summary")
+    result.metacognitive_score = _safe_float(
+        report.get("metacognitive_analysis", {}).get("calibration_score")
+    )
+    result.proctoring_score = _safe_float(
+        report.get("proctoring_summary", {}).get("integrity_score")
+    )
     result.report_data = report
     db.commit()
     db.refresh(result)

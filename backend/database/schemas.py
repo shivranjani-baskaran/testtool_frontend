@@ -89,3 +89,47 @@ class ValidateSessionResponse(BaseModel):
     session_id: Optional[str] = None
     candidate_id: Optional[str] = None
     message: str
+
+
+class JobDescriptionOut(BaseModel):
+    id: str
+    raw_text: str
+    role: Optional[str]
+    skills: Optional[List[str]]
+    weights: Optional[Dict[str, float]]
+    seniority_level: Optional[str]
+    questions: Optional[List[Dict[str, Any]]]
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class DashboardMetricsResponse(BaseModel):
+    total_candidates: int
+    tests_sent: int
+    tests_completed: int
+    average_score: float
+    score_distribution: List[Dict[str, Any]]
+
+
+class CandidateReportSummary(BaseModel):
+    candidate_id: str
+    name: Optional[str]
+    email: str
+    session_id: str
+    role: Optional[str]
+    final_score: Optional[float]
+    hire_decision: Optional[str]
+    risk_level: Optional[str]
+    completed_at: Optional[str]
+
+
+class BulkSendTestRequest(BaseModel):
+    emails: List[str]
+    names: Optional[List[Optional[str]]] = None
+    questions: List[Dict[str, Any]]
+    role: Optional[str] = None
+    skills: Optional[List[str]] = None
+    weights: Optional[Dict[str, float]] = None
+    jd_id: Optional[str] = None

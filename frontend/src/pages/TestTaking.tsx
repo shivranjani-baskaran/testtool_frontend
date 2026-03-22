@@ -105,7 +105,7 @@ const TestTaking: React.FC = () => {
   const currentQuestion = questions[currentIdx];
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Proctoring: track tab visibility changes
+  // Proctoring: track tab visibility changes, window blur, and copy-paste
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.hidden) {
@@ -127,11 +127,33 @@ const TestTaking: React.FC = () => {
       setProctorEvents((prev) => [...prev, event]);
     };
 
+    const handlePaste = () => {
+      const event: ProctorEvent = {
+        type: 'copy_paste',
+        timestamp: new Date().toISOString(),
+        details: 'Paste detected',
+      };
+      setProctorEvents((prev) => [...prev, event]);
+    };
+
+    const handleCopy = () => {
+      const event: ProctorEvent = {
+        type: 'copy_paste',
+        timestamp: new Date().toISOString(),
+        details: 'Copy detected',
+      };
+      setProctorEvents((prev) => [...prev, event]);
+    };
+
     document.addEventListener('visibilitychange', handleVisibilityChange);
     window.addEventListener('blur', handleBlur);
+    document.addEventListener('paste', handlePaste);
+    document.addEventListener('copy', handleCopy);
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('blur', handleBlur);
+      document.removeEventListener('paste', handlePaste);
+      document.removeEventListener('copy', handleCopy);
     };
   }, []);
 
@@ -281,7 +303,8 @@ const TestTaking: React.FC = () => {
         start_time: testStartTimeRef.current,
         end_time: endTime,
         tab_switches: summary.tab_switches,
-        copy_paste_attempts: 0,
+        copy_paste_attempts: proctorEvents.filter((e) => e.type === 'copy_paste').length,
+        window_blur_count: proctorEvents.filter((e) => e.type === 'window_blur').length,
       },
       // Legacy fields
       events: proctorEvents,

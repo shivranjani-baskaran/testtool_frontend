@@ -24,7 +24,22 @@ def generate_report(
 
     # Compute grade
     grade = _compute_grade(percentage)
-    hire = percentage >= 60
+
+    # Compute risk level
+    if proctoring_result.get("flagged"):
+        risk_level = "high"
+    elif metacognitive_result.get("overconfidence_count", 0) > 2:
+        risk_level = "medium"
+    else:
+        risk_level = "low"
+
+    # Compute hire decision (string label)
+    if percentage >= 70 and risk_level == "low":
+        hire_decision = "Hire"
+    elif percentage >= 50:
+        hire_decision = "Review"
+    else:
+        hire_decision = "Reject"
 
     # Strengths / weaknesses from category scores
     category_scores = judge_result.get("category_scores", {})
@@ -39,13 +54,24 @@ def generate_report(
     if metacognitive_result.get("overconfidence_count", 0) > 2:
         recommendations.append("Candidate shows signs of overconfidence in self-assessment.")
 
+    # Generate summary text
+    summary = (
+        f"Candidate scored {percentage:.1f}% overall (grade {grade}). "
+        f"Hire decision: {hire_decision}. Risk level: {risk_level}. "
+        f"Strengths: {', '.join(strengths) if strengths else 'None identified'}. "
+        f"Areas for improvement: {', '.join(weaknesses) if weaknesses else 'None identified'}."
+    )
+
     return {
         "candidate_id": candidate_id,
         "total_score": total_score,
         "max_score": max_score,
         "percentage": percentage,
+        "final_score": percentage,
         "grade": grade,
-        "hire_decision": hire,
+        "hire_decision": hire_decision,
+        "risk_level": risk_level,
+        "summary": summary,
         "category_scores": category_scores,
         "evaluated_responses": judge_result.get("evaluated_responses", []),
         "metacognitive_analysis": metacognitive_result,

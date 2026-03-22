@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   BarChart,
   Bar,
@@ -13,24 +13,8 @@ import {
   Legend,
 } from 'recharts';
 import Layout from '../components/Layout';
-import { CategoryPerformance, ScoreDistribution, SkillBreakdown } from '../types';
-
-// Static demo data matching the design spec
-const metrics = {
-  total_candidates: 1284,
-  tests_sent: 856,
-  tests_completed: 712,
-  average_score: 78.4,
-};
-
-const scoreDistribution: ScoreDistribution[] = [
-  { range: '0-20', count: 12 },
-  { range: '21-40', count: 45 },
-  { range: '41-60', count: 98 },
-  { range: '61-80', count: 245 },
-  { range: '81-90', count: 210 },
-  { range: '91-100', count: 102 },
-];
+import { DashboardMetrics, CandidateReportSummary, ScoreDistribution, CategoryPerformance, SkillBreakdown } from '../types';
+import { getDashboardMetrics, getAllReports } from '../api/client';
 
 const categoryPerformance: CategoryPerformance[] = [
   { name: 'Technical', value: 64, color: '#3b82f6' },
@@ -80,9 +64,53 @@ const MetricCard: React.FC<MetricCardProps> = ({
   </div>
 );
 
+const decisionColor = (decision?: string) => {
+  if (!decision) return 'text-gray-500 bg-gray-100';
+  if (decision === 'Hire') return 'text-green-700 bg-green-100';
+  if (decision === 'Review') return 'text-yellow-700 bg-yellow-100';
+  return 'text-red-700 bg-red-100';
+};
+
 const Dashboard: React.FC = () => {
+  const [metrics, setMetrics] = useState<DashboardMetrics>({
+    total_candidates: 0,
+    tests_sent: 0,
+    tests_completed: 0,
+    average_score: 0,
+    score_distribution: [],
+  });
+  const [recentReports, setRecentReports] = useState<CandidateReportSummary[]>([]);
+  const [metricsError, setMetricsError] = useState('');
+
+  useEffect(() => {
+    getDashboardMetrics()
+      .then(setMetrics)
+      .catch(() => setMetricsError('Could not load live metrics.'));
+
+    getAllReports()
+      .then((r) => setRecentReports(r.slice(0, 10)))
+      .catch(() => {});
+  }, []);
+
+  const scoreDistribution: ScoreDistribution[] =
+    metrics.score_distribution.length > 0
+      ? metrics.score_distribution
+      : [
+          { range: '0-20', count: 0 },
+          { range: '21-40', count: 0 },
+          { range: '41-60', count: 0 },
+          { range: '61-80', count: 0 },
+          { range: '81-100', count: 0 },
+        ];
+
   return (
     <Layout title="Dashboard" subtitle="Welcome back! Here's an overview of your hiring activity.">
+      {metricsError && (
+        <div className="mb-4 bg-yellow-50 border border-yellow-200 rounded-lg px-4 py-2 text-sm text-yellow-700">
+          {metricsError}
+        </div>
+      )}
+
       {/* Metric Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
         <MetricCard
@@ -95,8 +123,6 @@ const Dashboard: React.FC = () => {
                 d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
             </svg>
           }
-          change="12%"
-          changePositive={true}
         />
         <MetricCard
           label="Tests Sent"
@@ -108,8 +134,6 @@ const Dashboard: React.FC = () => {
                 d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
             </svg>
           }
-          change="8%"
-          changePositive={true}
         />
         <MetricCard
           label="Tests Completed"
@@ -121,8 +145,6 @@ const Dashboard: React.FC = () => {
                 d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
           }
-          change="5%"
-          changePositive={true}
         />
         <MetricCard
           label="Average Score"
@@ -134,8 +156,6 @@ const Dashboard: React.FC = () => {
                 d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
             </svg>
           }
-          change="2.3%"
-          changePositive={true}
         />
       </div>
 
@@ -189,6 +209,51 @@ const Dashboard: React.FC = () => {
             </PieChart>
           </ResponsiveContainer>
         </div>
+      </div>
+
+      {/* Recent Reports */}
+      <div className="bg-white rounded-xl shadow-sm p-5 mb-6">
+        <h2 className="text-base font-semibold text-gray-800 mb-4">Recent Reports</h2>
+        {recentReports.length === 0 ? (
+          <p className="text-sm text-gray-400 text-center py-6">No completed tests yet.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-100">
+                  <th className="text-left py-2 px-3 text-gray-500 font-medium">Name</th>
+                  <th className="text-left py-2 px-3 text-gray-500 font-medium">Email</th>
+                  <th className="text-left py-2 px-3 text-gray-500 font-medium">Role</th>
+                  <th className="text-right py-2 px-3 text-gray-500 font-medium">Score</th>
+                  <th className="text-center py-2 px-3 text-gray-500 font-medium">Decision</th>
+                  <th className="text-right py-2 px-3 text-gray-500 font-medium">Date</th>
+                </tr>
+              </thead>
+              <tbody>
+                {recentReports.map((r) => (
+                  <tr key={r.session_id} className="border-b border-gray-50 hover:bg-gray-50">
+                    <td className="py-2 px-3 font-medium text-gray-800">{r.name || '—'}</td>
+                    <td className="py-2 px-3 text-gray-600">{r.email}</td>
+                    <td className="py-2 px-3 text-gray-600">{r.role || '—'}</td>
+                    <td className="py-2 px-3 text-right font-semibold text-gray-800">
+                      {r.final_score != null ? `${r.final_score.toFixed(1)}%` : '—'}
+                    </td>
+                    <td className="py-2 px-3 text-center">
+                      {r.hire_decision ? (
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${decisionColor(r.hire_decision)}`}>
+                          {r.hire_decision}
+                        </span>
+                      ) : '—'}
+                    </td>
+                    <td className="py-2 px-3 text-right text-gray-500">
+                      {r.completed_at ? new Date(r.completed_at).toLocaleDateString() : '—'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       {/* Skill Breakdown */}

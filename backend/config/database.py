@@ -14,5 +14,5 @@ def get_db():
         db.close()
 
 def init_db():
-    from database.models import Candidate, TestSession, CandidateResponse, TestResult  # noqa: F401
+    from database.models import JobDescription, Candidate, TestSession, CandidateResponse, TestResult  # noqa: F401
     Base.metadata.create_all(bind=engine)

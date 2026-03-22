@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Layout from '../components/Layout';
-import { generateTest } from '../api/client';
+import { generateTest, sendTestBulk } from '../api/client';
 import { GenerateTestResponse, Question } from '../types';
 
 const UploadJD: React.FC = () => {
@@ -15,6 +15,14 @@ const UploadJD: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [result, setResult] = useState<GenerateTestResponse | null>(null);
+
+  // Bulk send state
+  const [jdId, setJdId] = useState<string | null>(null);
+  const [candidateEmails, setCandidateEmails] = useState<string[]>(['']);
+  const [candidateNames, setCandidateNames] = useState<string[]>(['']);
+  const [bulkSending, setBulkSending] = useState(false);
+  const [bulkResults, setBulkResults] = useState<any[] | null>(null);
+  const [bulkError, setBulkError] = useState('');
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -72,6 +80,11 @@ const UploadJD: React.FC = () => {
     try {
       const data = await generateTest({ job_description: fullDescription });
       setResult(data);
+      setJdId(data.jd_id ?? null);
+      setBulkResults(null);
+      setBulkError('');
+      setCandidateEmails(['']);
+      setCandidateNames(['']);
     } catch (err: any) {
       const msg =
         err?.response?.data?.detail ||
@@ -86,6 +99,52 @@ const UploadJD: React.FC = () => {
   const handleStartTest = () => {
     if (result) {
       navigate('/candidate-form', { state: { testData: result } });
+    }
+  };
+
+  const handleAddCandidate = () => {
+    setCandidateEmails((prev) => [...prev, '']);
+    setCandidateNames((prev) => [...prev, '']);
+  };
+
+  const handleRemoveCandidate = (idx: number) => {
+    setCandidateEmails((prev) => prev.filter((_, i) => i !== idx));
+    setCandidateNames((prev) => prev.filter((_, i) => i !== idx));
+  };
+
+  const handleEmailChange = (idx: number, val: string) => {
+    setCandidateEmails((prev) => prev.map((e, i) => (i === idx ? val : e)));
+  };
+
+  const handleNameChange = (idx: number, val: string) => {
+    setCandidateNames((prev) => prev.map((n, i) => (i === idx ? val : n)));
+  };
+
+  const handleBulkSend = async () => {
+    if (!result) return;
+    const emails = candidateEmails.filter((e) => e.trim() !== '');
+    if (emails.length === 0) {
+      setBulkError('Please enter at least one email address.');
+      return;
+    }
+    setBulkError('');
+    setBulkSending(true);
+    setBulkResults(null);
+    try {
+      const resp = await sendTestBulk({
+        emails,
+        names: candidateNames.slice(0, emails.length).map((n) => n.trim() || null),
+        questions: result.questions,
+        role: result.role,
+        skills: result.skills,
+        weights: result.weights,
+        jd_id: jdId ?? undefined,
+      });
+      setBulkResults(resp.results);
+    } catch (err: any) {
+      setBulkError(err?.response?.data?.detail || err?.message || 'Bulk send failed.');
+    } finally {
+      setBulkSending(false);
     }
   };
 
@@ -305,11 +364,24 @@ const UploadJD: React.FC = () => {
                 {result.questions.map((q: Question, idx: number) => (
                   <div key={q.id || idx} className="border border-gray-200 rounded-lg p-4">
                     <div className="flex items-start justify-between gap-2 mb-2">
-                      <p className="text-sm font-medium text-gray-800">
-                        <span className="text-gray-400 mr-2">Q{idx + 1}.</span>
-                        {q.text}
-                      </p>
-                      {getQuestionTypeBadge(q.type)}
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-sm font-medium text-gray-800">
+                          <span className="text-gray-400 mr-2">Q{idx + 1}.</span>
+                          {q.text}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        {q.difficulty && (
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-medium capitalize ${
+                            q.difficulty === 'easy' ? 'bg-green-100 text-green-700' :
+                            q.difficulty === 'hard' ? 'bg-red-100 text-red-700' :
+                            'bg-yellow-100 text-yellow-700'
+                          }`}>
+                            {q.difficulty}
+                          </span>
+                        )}
+                        {getQuestionTypeBadge(q.type)}
+                      </div>
                     </div>
                     {q.options && q.options.length > 0 && (
                       <ul className="mt-2 space-y-1 ml-4">
@@ -331,6 +403,117 @@ const UploadJD: React.FC = () => {
               </div>
             </div>
 
+            {/* Bulk Email Send */}
+            <div className="bg-white rounded-xl shadow-sm p-6">
+              <h2 className="text-base font-semibold text-gray-800 mb-1">Send Test to Candidates</h2>
+              <p className="text-sm text-gray-500 mb-4">
+                Enter candidate email addresses to send the test link via email.
+              </p>
+
+              <div className="space-y-3 mb-4">
+                {candidateEmails.map((email, idx) => (
+                  <div key={idx} className="flex gap-2 items-center">
+                    <input
+                      type="text"
+                      value={candidateNames[idx] ?? ''}
+                      onChange={(e) => handleNameChange(idx, e.target.value)}
+                      placeholder="Name (optional)"
+                      className="w-36 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(e) => handleEmailChange(idx, e.target.value)}
+                      placeholder="candidate@example.com"
+                      className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                    {idx > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveCandidate(idx)}
+                        className="text-red-500 hover:text-red-700 text-xs px-2 py-1 border border-red-200 rounded-lg"
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex items-center gap-3 mb-4">
+                <button
+                  type="button"
+                  onClick={handleAddCandidate}
+                  className="text-sm text-blue-600 hover:text-blue-800 border border-blue-200 hover:border-blue-400 px-3 py-1.5 rounded-lg transition-colors"
+                >
+                  + Add Candidate
+                </button>
+              </div>
+
+              {bulkError && (
+                <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-2 text-sm text-red-700 mb-3">
+                  {bulkError}
+                </div>
+              )}
+
+              {bulkResults && (
+                <div className="mb-4 space-y-2">
+                  {bulkResults.map((r, i) => (
+                    <div
+                      key={i}
+                      className={`flex items-center gap-2 text-sm px-3 py-2 rounded-lg ${
+                        r.status === 'success' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'
+                      }`}
+                    >
+                      {r.status === 'success' ? (
+                        <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                      ) : (
+                        <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      )}
+                      <span>
+                        <strong>{r.email}</strong>:{' '}
+                        {r.status === 'success'
+                          ? r.email_sent
+                            ? 'Test link sent via email.'
+                            : 'Session created (email not configured).'
+                          : r.detail || 'Failed'}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <button
+                type="button"
+                onClick={handleBulkSend}
+                disabled={bulkSending}
+                className="bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white px-5 py-2.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+              >
+                {bulkSending ? (
+                  <>
+                    <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                    </svg>
+                    Sending...
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                        d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                    </svg>
+                    Send Test to All Candidates
+                  </>
+                )}
+              </button>
+            </div>
+
             {/* Actions */}
             <div className="flex gap-3 justify-end">
               <button
@@ -345,9 +528,11 @@ const UploadJD: React.FC = () => {
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                    d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                    d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                    d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                Send to Candidate
+                Start Test Manually
               </button>
             </div>
           </div>
