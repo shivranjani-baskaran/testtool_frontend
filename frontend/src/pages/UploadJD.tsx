@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Layout from '../components/Layout';
-import { generateTest, sendTestBulk } from '../api/client';
+import { generateTest, sendTestBulk, parseFile } from '../api/client';
 import { GenerateTestResponse, Question } from '../types';
 
 const UploadJD: React.FC = () => {
@@ -24,7 +24,41 @@ const UploadJD: React.FC = () => {
   const [bulkResults, setBulkResults] = useState<any[] | null>(null);
   const [bulkError, setBulkError] = useState('');
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  /** Returns true for file types that need server-side parsing (.docx, .doc, .pdf). */
+  const isBinaryFile = (filename: string): boolean => {
+    const lower = filename.toLowerCase();
+    return lower.endsWith('.docx') || lower.endsWith('.doc') || lower.endsWith('.pdf');
+  };
+
+  /** Parse a file: call the backend for binary types, use FileReader for plain text. */
+  const loadFileText = async (file: File): Promise<void> => {
+    if (isBinaryFile(file.name)) {
+      setLoading(true);
+      setError('');
+      try {
+        const parsed = await parseFile(file);
+        setJobDescription(parsed.text);
+      } catch (err: any) {
+        setError(
+          err?.response?.data?.detail ||
+          err?.message ||
+          'Failed to parse file. Please paste the job description as text instead.'
+        );
+      } finally {
+        setLoading(false);
+      }
+    } else {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        if (ev.target?.result) {
+          setJobDescription(ev.target.result as string);
+        }
+      };
+      reader.readAsText(file);
+    }
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -39,28 +73,16 @@ const UploadJD: React.FC = () => {
     }
 
     setFileName(file.name);
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      if (ev.target?.result) {
-        setJobDescription(ev.target.result as string);
-      }
-    };
-    reader.readAsText(file);
+    await loadFileText(file);
   };
 
-  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+  const handleDrop = async (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     const file = e.dataTransfer.files[0];
-    if (file) {
-      setFileName(file.name);
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-        if (ev.target?.result) {
-          setJobDescription(ev.target.result as string);
-        }
-      };
-      reader.readAsText(file);
-    }
+    if (!file) return;
+
+    setFileName(file.name);
+    await loadFileText(file);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {

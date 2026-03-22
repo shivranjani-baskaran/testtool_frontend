@@ -1,5 +1,6 @@
+import io
 import logging
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 from config.database import get_db
 from database.schemas import (
@@ -18,6 +19,41 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+def _clean_job_description(text: str) -> str:
+    """
+    Sanitize job description text before processing.
+
+    If the text looks like raw binary .docx content (starts with 'PK' magic bytes or
+    contains NUL bytes), attempt to extract readable text via python-docx.
+    Falls back to stripping non-printable characters.
+    Raises ValueError with HTTP 400 if no readable content can be extracted.
+    """
+    if "\x00" not in text and not text.startswith("PK"):
+        return text
+
+    # Attempt python-docx parsing
+    try:
+        import docx
+
+        raw_bytes = text.encode("latin-1", errors="replace")
+        doc = docx.Document(io.BytesIO(raw_bytes))
+        extracted = "\n".join(p.text for p in doc.paragraphs if p.text.strip())
+        if extracted.strip():
+            return extracted
+    except Exception:
+        pass
+
+    # Fallback: strip NUL and non-printable characters
+    cleaned = "".join(ch for ch in text if ch >= " " or ch in "\n\r\t")
+    if not cleaned.strip():
+        raise ValueError(
+            "Could not extract readable text from the uploaded file. "
+            "Please paste the job description as plain text or upload a .txt file."
+        )
+    return cleaned
+
+
+
 @router.post("/generate-test")
 async def generate_test(request: GenerateTestRequest, db: Session = Depends(get_db)):
     """
@@ -26,11 +62,13 @@ async def generate_test(request: GenerateTestRequest, db: Session = Depends(get_
     """
     try:
         from agents.generate_langgraph import run_generate_workflow
-        result = run_generate_workflow(request.job_description)
 
-        # Persist the job description
+        cleaned_jd = _clean_job_description(request.job_description)
+        result = run_generate_workflow(cleaned_jd)
+
+        # Persist the job description (store cleaned text, not raw binary)
         jd = JobDescription(
-            raw_text=request.job_description,
+            raw_text=cleaned_jd,
             role=result.get("role"),
             skills=result.get("skills"),
             weights=result.get("weights"),
@@ -42,6 +80,8 @@ async def generate_test(request: GenerateTestRequest, db: Session = Depends(get_
 
         result["jd_id"] = jd.id
         return result
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
     except ImportError:
         logger.warning("generate_langgraph not available, returning placeholder.")
         raise HTTPException(
@@ -50,6 +90,61 @@ async def generate_test(request: GenerateTestRequest, db: Session = Depends(get_
         )
     except Exception as exc:
         logger.error("Test generation failed: %s", exc)
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@router.post("/parse-file")
+async def parse_file(file: UploadFile = File(...)):
+    """
+    Parse an uploaded .docx, .pdf, or .txt file and return its text content.
+    The frontend calls this endpoint instead of reading binary files locally.
+    """
+    filename = (file.filename or "").lower()
+    content = await file.read()
+
+    try:
+        if filename.endswith(".docx"):
+            try:
+                import docx
+
+                doc = docx.Document(io.BytesIO(content))
+                text = "\n".join(p.text for p in doc.paragraphs if p.text.strip())
+            except Exception as exc:
+                raise HTTPException(
+                    status_code=422,
+                    detail=f"Could not parse .docx file: {exc}",
+                )
+        elif filename.endswith(".pdf"):
+            try:
+                import pdfplumber
+
+                with pdfplumber.open(io.BytesIO(content)) as pdf:
+                    text = "\n".join(
+                        page.extract_text() or "" for page in pdf.pages
+                    )
+            except ImportError:
+                # pdfplumber not installed; fall back to raw decode
+                text = content.decode("utf-8", errors="ignore")
+            except Exception as exc:
+                raise HTTPException(
+                    status_code=422,
+                    detail=f"Could not parse PDF file: {exc}",
+                )
+        else:
+            # .txt and other text files
+            text = content.decode("utf-8", errors="ignore")
+
+        text = text.strip()
+        if not text:
+            raise HTTPException(
+                status_code=422,
+                detail="No readable text found in the uploaded file.",
+            )
+        return {"text": text}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("File parsing failed: %s", exc)
         raise HTTPException(status_code=500, detail=str(exc))
 
 
