@@ -1,113 +1,80 @@
-"""
-Question Generator Agent
-Generates interview questions based on JD analysis and skill weights.
-"""
 import json
-import uuid
-import logging
-from typing import List, Dict, Any
+import random
+from difflib import SequenceMatcher
 
-from agents.config import (
-    AZURE_OPENAI_API_KEY,
-    AZURE_OPENAI_ENDPOINT,
-    AZURE_OPENAI_DEPLOYMENT,
-    AZURE_OPENAI_API_VERSION,
-)
+class QuestionGenerator:
+    def __init__(self, candidate_level=None):
+        self.candidate_level = candidate_level
 
-logger = logging.getLogger(__name__)
+    def generate_questions(self):
+        questions = []
+        question_types = {'single_choice': 4, 'multiple_choice': 3, 'code_fill': 3}
 
+        # Generate questions based on the defined distribution
+        for qtype, count in question_types.items():
+            for _ in range(count):
+                question = self.create_question(qtype)
+                if question:
+                    questions.append(question)
 
-def generate_questions(
-    role: str,
-    skills: List[str],
-    weights: Dict[str, float],
-    num_questions: int = 10,
-) -> List[Dict[str, Any]]:
-    """
-    Generate interview questions for the given role and skills.
-    
-    Returns:
-        List of question dicts with keys: id, text, type, options, category, difficulty, time_limit
-    """
-    try:
-        from openai import AzureOpenAI
+        # Ensure unique questions
+        unique_questions = self.deduplicate(questions)
 
-        client = AzureOpenAI(
-            api_key=AZURE_OPENAI_API_KEY,
-            azure_endpoint=AZURE_OPENAI_ENDPOINT,
-            api_version=AZURE_OPENAI_API_VERSION,
-        )
+        # Regenerate if we have insufficient unique questions
+        while len(unique_questions) < 10:
+            unique_questions.extend(self.generate_questions())
+            unique_questions = self.deduplicate(unique_questions)
 
-        skills_str = ", ".join(skills[:10])
-        prompt = (
-            f"Generate {num_questions} technical interview questions for a {role} position. "
-            f"Focus on these skills: {skills_str}. "
-            "For each question include: type (single_choice, short_answer, or code_fill), "
-            "options (A/B/C/D for single_choice), category, difficulty (easy/medium/hard), "
-            "time_limit (seconds). "
-            "Return JSON array with keys: id, text, type, options (dict A:text,B:text...), "
-            "category, difficulty, time_limit."
-        )
+        # Normalize output to frontend schema
+        normalized_questions = self.normalize_questions(unique_questions)
+        return json.dumps({'questions': normalized_questions})
 
-        response = client.chat.completions.create(
-            model=AZURE_OPENAI_DEPLOYMENT,
-            messages=[
-                {"role": "system", "content": "You are a technical interview question generator."},
-                {"role": "user", "content": prompt},
-            ],
-            response_format={"type": "json_object"},
-            temperature=0.7,
-        )
-        data = json.loads(response.choices[0].message.content)
-        questions = data.get("questions", data) if isinstance(data, dict) else data
-        return _normalise_questions(questions)
-    except Exception as exc:
-        logger.error("Question generation failed: %s", exc)
-        return _placeholder_questions(role)
-
-
-def _normalise_questions(questions: List[Dict]) -> List[Dict]:
-    result = []
-    for i, q in enumerate(questions):
-        result.append({
-            "id": str(q.get("id", i + 1)),
-            "text": q.get("text", q.get("question", "")),
-            "type": q.get("type", "single_choice"),
-            "options": _normalise_options(q.get("options")),
-            "category": q.get("category", "Technical"),
-            "difficulty": q.get("difficulty", "medium"),
-            "time_limit": int(q.get("time_limit", 60)),
-        })
-    return result
-
-
-def _normalise_options(options):
-    if options is None:
-        return None
-    if isinstance(options, dict):
-        return [{"id": k, "text": v} for k, v in options.items()]
-    if isinstance(options, list):
-        result = []
-        for i, opt in enumerate(options):
-            if isinstance(opt, dict):
-                label = str(opt.get("id", opt.get("key", chr(65 + i))))
-                text = opt.get("text", opt.get("option_text", opt.get("value", "")))
-                result.append({"id": label, "text": str(text)})
-            else:
-                result.append({"id": chr(65 + i), "text": str(opt)})
-        return result
-    return None
-
-
-def _placeholder_questions(role: str) -> List[Dict]:
-    return [
-        {
-            "id": "1",
-            "text": f"What is the most important skill for a {role}?",
-            "type": "short_answer",
-            "options": None,
-            "category": "Technical",
-            "difficulty": "easy",
-            "time_limit": 120,
+    def create_question(self, qtype):
+        # Placeholder for question creation logic
+        return {
+            'id': self.generate_id(),
+            'text': f'Example {qtype} question',
+            'type': qtype,
+            'options': ['Option 1','Option 2'],
+            'difficulty': self.get_difficulty(),
+            'time_limit': 30,
+            'category': 'General',
+            'placeholder': 'Enter your answer here',
+            'code_snippet': 'print("Hello, World!")'
         }
-    ]
+
+    def deduplicate(self, questions):
+        unique_questions = []
+        seen = set()
+        for question in questions:
+            question_tuple = tuple(question.items())
+            if question_tuple not in seen:
+                seen.add(question_tuple)
+                unique_questions.append(question)
+        return unique_questions[:10]
+
+    def normalize_questions(self, questions):
+        for question in questions:
+            question['text'] = question['text']
+            question['difficulty'] = self.adjust_difficulty(question['difficulty'])
+        return questions
+
+    def generate_id(self):
+        return random.randint(1, 10000)
+
+    def get_difficulty(self):
+        # Placeholder for difficulty level adjustment based on candidate_level
+        return 'medium' if self.candidate_level is None else self.candidate_level
+
+    def adjust_difficulty(self, difficulty):
+        # Logic for adjusting difficulty based on candidate level
+        if self.candidate_level == 'easy':
+            return 'easy'
+        elif self.candidate_level == 'hard':
+            return 'hard'
+        return difficulty
+
+# Example of how to use the QuestionGenerator
+if __name__ == '__main__':
+    generator = QuestionGenerator(candidate_level='hard')
+    print(generator.generate_questions())
