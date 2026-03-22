@@ -6,6 +6,9 @@ import {
   Option,
   SubmitTestRequest,
   SubmitTestResponse,
+  DashboardMetrics,
+  CandidateReportSummary,
+  JobDescriptionRecord,
 } from '../types';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
@@ -79,6 +82,7 @@ interface RawGenerateTestResponse {
   skills?: string[];
   weights?: Record<string, number>;
   test_id?: string;
+  jd_id?: string;
   [key: string]: unknown;
 }
 
@@ -146,6 +150,7 @@ const normalizeGenerateTestResponse = (raw: RawGenerateTestResponse): GenerateTe
     skills: Array.isArray(raw.skills) ? raw.skills : [],
     weights: raw.weights ?? {},
     test_id: raw.test_id ?? undefined,
+    jd_id: raw.jd_id ?? undefined,
   };
 };
 
@@ -174,6 +179,39 @@ export const generateTestLink = async (request: {
   session_id?: string;
 }): Promise<{ session_id: string; test_link: string; message: string }> => {
   const response = await apiClient.post('/generate-test-link', request);
+  return response.data;
+};
+
+export const getDashboardMetrics = async (): Promise<DashboardMetrics> => {
+  const response = await apiClient.get('/dashboard/metrics');
+  return response.data;
+};
+
+export const getJobDescriptions = async (): Promise<JobDescriptionRecord[]> => {
+  const response = await apiClient.get('/dashboard/job-descriptions');
+  return response.data;
+};
+
+export const getAllReports = async (): Promise<CandidateReportSummary[]> => {
+  const response = await apiClient.get('/dashboard/reports');
+  return response.data;
+};
+
+export const getCandidateReport = async (candidateId: string): Promise<any> => {
+  const response = await apiClient.get(`/candidate/${candidateId}/report`);
+  return response.data;
+};
+
+export const sendTestBulk = async (data: {
+  emails: string[];
+  names?: (string | null)[];
+  questions: Question[];
+  role?: string;
+  skills?: string[];
+  weights?: Record<string, number>;
+  jd_id?: string;
+}): Promise<{ sent: number; results: any[] }> => {
+  const response = await apiClient.post('/send-test-bulk', data);
   return response.data;
 };
 

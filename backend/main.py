@@ -9,6 +9,7 @@ from routes.health import router as health_router
 from routes.test_generation import router as test_generation_router
 from routes.test_submission import router as test_submission_router
 from routes.candidate import router as candidate_router
+from routes.dashboard import router as dashboard_router
 
 logging.basicConfig(
     level=logging.INFO,
@@ -36,6 +37,7 @@ app.include_router(health_router, tags=["Health"])
 app.include_router(test_generation_router, tags=["Test Generation"])
 app.include_router(test_submission_router, tags=["Test Submission"])
 app.include_router(candidate_router, tags=["Candidates"])
+app.include_router(dashboard_router, tags=["Dashboard"])
 
 
 @app.on_event("startup")

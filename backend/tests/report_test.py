@@ -17,5 +17,7 @@ def test_generate_report_structure():
     proc = {"tab_switches": 0, "copy_paste_attempts": 0, "no_face_count": 0, "total_events": 0, "integrity_score": 100, "flagged": False}
     report = generate_report("CAND_001", judge, meta, proc)
     assert report["grade"] == "C"
-    assert report["hire_decision"] is True
+    assert report["hire_decision"] == "Hire"
+    assert report["risk_level"] == "low"
+    assert report["summary"] is not None
     assert "recommendations" in report
