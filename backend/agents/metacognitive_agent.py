@@ -7,6 +7,14 @@ from typing import List, Dict, Any
 
 logger = logging.getLogger(__name__)
 
+# Detection thresholds
+_GUESSING_TIME_THRESHOLD = 15        # seconds: very fast answer
+_GUESSING_SCORE_THRESHOLD = 0.4     # score fraction below which guessing is suspected
+_STRUGGLE_TIME_THRESHOLD = 120       # seconds: slow answer
+_STRUGGLE_SCORE_THRESHOLD = 0.5     # score fraction below which struggle is suspected
+_OVERCONFIDENCE_DIFF = 0.33          # confidence vs score diff indicating overconfidence
+_OVERCONFIDENCE_COUNT_ALERT = 2      # min overconfident questions to emit a behavioural alert
+
 
 def analyze_metacognition(
     responses: List[Dict[str, Any]],
@@ -46,19 +54,19 @@ def analyze_metacognition(
 
         total += 1
         diff = conf_level - score_pct
-        if diff > 0.33:
+        if diff > _OVERCONFIDENCE_DIFF:
             overconfident += 1
-        elif diff < -0.33:
+        elif diff < -_OVERCONFIDENCE_DIFF:
             underconfident += 1
         else:
             accurate += 1
 
         # Guessing detection: answered very fast with low score
-        if time_taken < 15 and score_pct < 0.4:
+        if time_taken < _GUESSING_TIME_THRESHOLD and score_pct < _GUESSING_SCORE_THRESHOLD:
             guessing_count += 1
 
         # Struggle detection: took a long time but still scored poorly
-        if time_taken > 120 and score_pct < 0.5:
+        if time_taken > _STRUGGLE_TIME_THRESHOLD and score_pct < _STRUGGLE_SCORE_THRESHOLD:
             struggle_count += 1
 
     calibration_score = round((accurate / total * 100), 1) if total > 0 else 0
@@ -72,7 +80,7 @@ def analyze_metacognition(
     meta_score = round(min(meta_score, 100), 1)
 
     # Build behavioural insights
-    if overconfident > 2:
+    if overconfident > _OVERCONFIDENCE_COUNT_ALERT:
         behavioral_insights.append(
             f"High overconfidence detected in {overconfident} question(s): candidate rates "
             "themselves higher than their actual performance."

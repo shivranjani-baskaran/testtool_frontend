@@ -103,9 +103,12 @@ def save_test_result(
 
     result.technical_score = _safe_float(report.get("total_score"))
     result.final_score = _safe_float(report.get("final_score") or report.get("percentage"))
-    result.hire_decision = bool(report.get("percentage", 0) >= 60)
+    # hire_decision_label is the authoritative string decision from the report agent
+    hire_label = report.get("hire_decision") if isinstance(report.get("hire_decision"), str) else None
+    result.hire_decision_label = hire_label
+    # Keep the boolean field aligned with the label for backward compatibility
+    result.hire_decision = hire_label == "Hire" if hire_label else bool(report.get("percentage", 0) >= 60)
     result.risk_level = report.get("risk_level")
-    result.hire_decision_label = report.get("hire_decision") if isinstance(report.get("hire_decision"), str) else None
     result.strengths = report.get("strengths")
     result.weaknesses = report.get("weaknesses")
     result.summary = report.get("summary")

@@ -81,10 +81,10 @@ const DEMO_REPORT: SubmitTestResponse = {
       },
     ],
     metacognitive_analysis: {
-      confidence_accuracy: 0.82,
+      confidence_accuracy: 82,
       overconfidence_count: 1,
       underconfidence_count: 2,
-      calibration_score: 0.78,
+      calibration_score: 78,
     },
     proctoring_summary: {
       tab_switches: 0,
