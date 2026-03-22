@@ -14,6 +14,32 @@ from agents.config import (
 logger = logging.getLogger(__name__)
 
 
+def _sanitize_text(text: str) -> str:
+    """
+    Detect and handle binary content (e.g. raw .docx bytes read as text).
+    If the text starts with 'PK' (ZIP/DOCX magic bytes) or contains NUL bytes,
+    attempt to parse it with python-docx; otherwise strip non-printable characters.
+    """
+    if "\x00" not in text and not text.startswith("PK"):
+        return text
+
+    # Try to parse as a .docx document
+    try:
+        import io
+        import docx
+
+        raw_bytes = text.encode("latin-1", errors="replace")
+        doc = docx.Document(io.BytesIO(raw_bytes))
+        extracted = "\n".join(p.text for p in doc.paragraphs if p.text.strip())
+        if extracted.strip():
+            return extracted
+    except Exception:
+        pass
+
+    # Fallback: strip NUL and other non-printable characters
+    return "".join(ch for ch in text if ch >= " " or ch in "\n\r\t")
+
+
 def analyze_job_description(job_description: str) -> Dict[str, Any]:
     """
     Analyze a job description and return extracted skills, role, and requirements.
@@ -21,6 +47,8 @@ def analyze_job_description(job_description: str) -> Dict[str, Any]:
     Returns:
         dict with keys: role, skills, requirements, seniority_level
     """
+    job_description = _sanitize_text(job_description)
+
     try:
         from openai import AzureOpenAI
 

@@ -215,4 +215,13 @@ export const sendTestBulk = async (data: {
   return response.data;
 };
 
+export const parseFile = async (file: File): Promise<{ text: string }> => {
+  const formData = new FormData();
+  formData.append('file', file);
+  const response = await apiClient.post<{ text: string }>('/parse-file', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  return response.data;
+};
+
 export default apiClient;
